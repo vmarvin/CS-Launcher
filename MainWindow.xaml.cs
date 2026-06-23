@@ -1,4 +1,7 @@
-﻿using System.IO;
+﻿using System.Diagnostics;
+using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
 using System.Xml.Linq;
@@ -10,6 +13,11 @@ namespace CS_Launcher
     /// </summary>
     public partial class MainWindow : Window
     {
+        /// <summary>
+        /// Имя процесса ViewX, за завершением которого мы можем следить.
+        /// </summary>
+        private const string ViewXProcessName = "SE.Scada.ViewX";
+
         /// <summary>
         /// Путь к INI-файлу рядом с исполняемым файлом.
         /// Используется для сохранения ранее введённых значений.
@@ -25,6 +33,11 @@ namespace CS_Launcher
             "Schneider Electric",
             "ClearSCADA",
             "Systems.xml");
+
+        /// <summary>
+        /// Источник отмены для фонового ожидания завершения процесса.
+        /// </summary>
+        private CancellationTokenSource? _attachMonitorCts;
 
         /// <summary>
         /// Создаёт главное окно и задаёт начальный фокус ввода после загрузки окна.
@@ -46,6 +59,13 @@ namespace CS_Launcher
                 else
                     TxtSystem.Focus();
             };
+
+            // При закрытии окна сохраняем актуальное состояние формы независимо от результата логина.
+            Closing += (_, _) =>
+            {
+                StopAttachMonitoring();
+                SaveSettings();
+            };
         }
 
         /// <summary>
@@ -62,12 +82,13 @@ namespace CS_Launcher
 
             // Читаем файл построчно и ищем нужные пары ключ=значение.
             var lines = File.ReadAllLines(IniPath);
-            string? system = null, login = null;
+            string? system = null, login = null, attachToProcess = null;
 
             foreach (var line in lines)
             {
                 if (line.StartsWith("System=")) system = line["System=".Length..];
                 else if (line.StartsWith("Login=")) login = line["Login=".Length..];
+                else if (line.StartsWith("AttachToProcess=")) attachToProcess = line["AttachToProcess=".Length..];
             }
 
             // Для корректного восстановления нужны оба значения.
@@ -76,6 +97,10 @@ namespace CS_Launcher
             // Применяем сохранённые значения к полям формы.
             TxtSystem.Text = system;
             TxtLogin.Text = login;
+
+            // Восстанавливаем состояние режима attach; если значение отсутствует,
+            // считаем режим выключенным.
+            ChkAttachToProcess.IsChecked = bool.TryParse(attachToProcess, out bool attachEnabled) && attachEnabled;
             return true;
         }
 
@@ -98,7 +123,8 @@ namespace CS_Launcher
             // Файл хранится в простом формате key=value, по одной паре на строку.
             File.WriteAllLines(IniPath, [
                 $"System={system}",
-                $"Login={TxtLogin.Text.Trim()}"
+                $"Login={TxtLogin.Text.Trim()}",
+                $"AttachToProcess={ChkAttachToProcess.IsChecked == true}"
             ]);
         }
 
@@ -170,6 +196,10 @@ namespace CS_Launcher
         /// <param name="e">Аргументы события нажатия кнопки.</param>
         private void BtnStart_Click(object sender, RoutedEventArgs e)
         {
+            // Если был активен предыдущий attach-мониторинг, завершаем его,
+            // чтобы новое ручное нажатие кнопки не создавало дублирующий цикл.
+            StopAttachMonitoring();
+
             // Стираем текст старой ошибки перед каждой новой попыткой входа.
             TxtError.Text = string.Empty;
 
@@ -184,6 +214,10 @@ namespace CS_Launcher
                 system = "*";
                 TxtSystem.Text = system;
             }
+
+            // Сохраняем текущий снимок полей сразу, чтобы состояние чекбокса
+            // и введённые значения не зависели от результата логина.
+            SaveSettings();
 
             // Логин обязателен для любого режима авторизации.
             if (string.IsNullOrEmpty(login))
@@ -221,9 +255,10 @@ namespace CS_Launcher
                     failCount++;
             }
 
-            // Сохраняем значения только если был хотя бы один успешный вход.
-            if (successCount > 0)
-                SaveSettings();
+            // Если пользователь включил режим attach и хотя бы один логон прошёл успешно,
+            // начинаем фоновое ожидание завершения процесса ViewX.
+            if (successCount > 0 && ChkAttachToProcess.IsChecked == true)
+                StartAttachMonitoring();
 
             // Успех считается достигнутым при наличии хотя бы одного успешного логина.
             if (successCount == 0)
@@ -232,6 +267,116 @@ namespace CS_Launcher
                     ? $"Не удалось выполнить вход ни для одной системы. Ошибок: {failCount}."
                     : "Не удалось выполнить вход ни для одной системы.";
             }
+        }
+
+        /// <summary>
+        /// Останавливает текущее фоновое ожидание процесса ViewX, если оно было запущено.
+        /// </summary>
+        private void StopAttachMonitoring()
+        {
+            _attachMonitorCts?.Cancel();
+            _attachMonitorCts?.Dispose();
+            _attachMonitorCts = null;
+        }
+
+        /// <summary>
+        /// Немедленно отключает мониторинг процесса при снятии чекбокса Attach to process.
+        /// </summary>
+        /// <param name="sender">Источник события.</param>
+        /// <param name="e">Аргументы Routed-события.</param>
+        private void ChkAttachToProcess_Unchecked(object sender, RoutedEventArgs e)
+        {
+            StopAttachMonitoring();
+        }
+
+        /// <summary>
+        /// Запускает фоновое ожидание завершения процесса ViewX и после его закрытия
+        /// инициирует повторный логон с текущими настройками формы.
+        /// </summary>
+        private void StartAttachMonitoring()
+        {
+            StopAttachMonitoring();
+
+            _attachMonitorCts = new CancellationTokenSource();
+            CancellationToken token = _attachMonitorCts.Token;
+
+            _ = Task.Run(() => MonitorViewXProcessAsync(token), token);
+        }
+
+        /// <summary>
+        /// Ожидает появления и завершения процесса ViewX в фоновом потоке.
+        /// </summary>
+        /// <param name="token">Токен отмены, который прерывает ожидание при новом запуске авторизации.</param>
+        private async Task MonitorViewXProcessAsync(CancellationToken token)
+        {
+            try
+            {
+                using Process? process = await WaitForViewXProcessAsync(token).ConfigureAwait(false);
+
+                if (process is null)
+                    return;
+
+                // WaitForExit не требует повышения привилегий для процесса того же пользователя/сеанса.
+                process.WaitForExit();
+
+                if (token.IsCancellationRequested)
+                    return;
+
+                // После завершения процесса возвращаемся в UI-поток и повторяем логон.
+                await Dispatcher.InvokeAsync(() => BtnStart_Click(this, new RoutedEventArgs()));
+            }
+            catch (OperationCanceledException)
+            {
+                // Нормальный сценарий при новом ручном запуске авторизации.
+            }
+            catch (InvalidOperationException)
+            {
+                // Процесс мог завершиться между поиском и началом ожидания.
+            }
+        }
+
+        /// <summary>
+        /// Ищет процесс ViewX, запущенный в текущем сеансе пользователя.
+        /// Если процесс ещё не появился, продолжает ждать до отмены.
+        /// </summary>
+        /// <param name="token">Токен отмены ожидания.</param>
+        /// <returns>Объект процесса или <c>null</c>, если ожидание было отменено.</returns>
+        private static async Task<Process?> WaitForViewXProcessAsync(CancellationToken token)
+        {
+            while (true)
+            {
+                token.ThrowIfCancellationRequested();
+
+                Process? process = FindCurrentUserViewXProcess();
+                if (process is not null)
+                    return process;
+
+                await Task.Delay(500, token).ConfigureAwait(false);
+            }
+        }
+
+        /// <summary>
+        /// Находит экземпляр процесса ViewX в текущем сеансе пользователя.
+        /// </summary>
+        /// <returns>Подходящий процесс или <c>null</c>, если процесс не найден.</returns>
+        private static Process? FindCurrentUserViewXProcess()
+        {
+            int currentSessionId = Process.GetCurrentProcess().SessionId;
+
+            foreach (Process process in Process.GetProcessesByName(ViewXProcessName))
+            {
+                try
+                {
+                    if (process.SessionId == currentSessionId)
+                        return process;
+                }
+                catch (InvalidOperationException)
+                {
+                    // Процесс мог завершиться в момент проверки.
+                }
+            }
+
+            return null;
         }
     }
 }
