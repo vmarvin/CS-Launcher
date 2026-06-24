@@ -29,12 +29,7 @@
         <Label x:Name="LblPassword" Grid.Row="2" Grid.Column="0" Content="Password:" VerticalAlignment="Center"/>
         <PasswordBox x:Name="TxtPassword" Grid.Row="2" Grid.Column="1" Margin="0,4" KeyDown="TxtPassword_KeyDown"/>
 
-        <StackPanel Grid.Row="3" Grid.Column="1" Margin="0,12,0,0" Orientation="Horizontal" HorizontalAlignment="Right">
-            <Button x:Name="BtnExit" Content="Exit" Width="80" Margin="0,0,8,0" Click="BtnLogOff_Click"/>
-            <Button x:Name="BtnLogOn" Content="LogOn" Width="80" Click="BtnStart_Click"/>
-        </StackPanel>
-
-        <StackPanel Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="2"
+        <StackPanel Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="2"
                     Orientation="Vertical" Margin="0,10,0,0">
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                 <CheckBox x:Name="ChkAttachToProcess"
@@ -61,6 +56,11 @@
                          Text="120"/>
                 <TextBlock x:Name="TxtExitUnit" Text="minutes of inactivity" Margin="6,0,0,0" VerticalAlignment="Center" Width="232"/>
             </StackPanel>
+        </StackPanel>
+
+        <StackPanel Grid.Row="4" Grid.Column="1" Margin="0,12,0,0" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button x:Name="BtnExit" Content="Exit" Width="80" Margin="0,0,8,0" Click="BtnLogOff_Click"/>
+            <Button x:Name="BtnLogOn" Content="LogOn" Width="80" Click="BtnStart_Click"/>
         </StackPanel>
 
         <Viewbox Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="2"
