@@ -91,6 +91,11 @@ namespace CS_Launcher
         private CancellationTokenSource? _exitAfterCts;
 
         /// <summary>
+        /// Признак использования русского интерфейса.
+        /// </summary>
+        private readonly bool _isRussianUi = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName.Equals("ru", StringComparison.OrdinalIgnoreCase);
+
+        /// <summary>
         /// Базовый размер шрифта поля ошибок для последующего восстановления.
         /// </summary>
         private double _errorTextBaseFontSize;
@@ -101,6 +106,8 @@ namespace CS_Launcher
         public MainWindow()
         {
             InitializeComponent();
+
+            ApplyLocalization();
 
             _errorTextBaseFontSize = TxtError.FontSize;
 
@@ -133,6 +140,84 @@ namespace CS_Launcher
                 SaveSettings();
             };
         }
+
+        /// <summary>
+        /// Применяет локализацию к элементам интерфейса.
+        /// </summary>
+        private void ApplyLocalization()
+        {
+            Title = _isRussianUi ? "CS Launcher" : "CS Launcher";
+
+            LblSystem.Content = _isRussianUi ? "Система:" : "System:";
+            LblLogin.Content = _isRussianUi ? "Логин:" : "Login:";
+            LblPassword.Content = _isRussianUi ? "Пароль:" : "Password:";
+
+            BtnExit.Content = _isRussianUi ? "Выход" : "Exit";
+            BtnLogOn.Content = _isRussianUi ? "Вход" : "LogOn";
+
+            ChkAttachToProcess.Content = _isRussianUi ? "Перезапускать ViewX через" : "Restart ViewX after";
+            TxtRestartUnit.Text = _isRussianUi ? "сек" : "sec";
+
+            ChkExitAfter.Content = _isRussianUi ? "Выход после" : "Exit after";
+            TxtExitUnit.Text = _isRussianUi ? "минут бездействия" : "minutes of inactivity";
+        }
+
+        /// <summary>
+        /// Возвращает локализованную строку о необходимости заполнить логин.
+        /// </summary>
+        private string TextLoginRequired() => _isRussianUi
+            ? "Заполните поле \"Логин\"."
+            : "Please fill in the Login field.";
+
+        /// <summary>
+        /// Возвращает локализованную строку об отсутствии подходящих систем.
+        /// </summary>
+        private string TextNoSystemsFound() => _isRussianUi
+            ? "Не найдены подходящие системы в Systems.xml."
+            : "No matching systems were found in Systems.xml.";
+
+        /// <summary>
+        /// Возвращает локализованную строку о некорректно заполненном поле системы.
+        /// </summary>
+        private string TextInvalidSystem() => _isRussianUi
+            ? "Заполните поле \"Система\" или проверьте его значение."
+            : "Fill in the System field or check its value.";
+
+        /// <summary>
+        /// Возвращает локализованную строку о неудачном входе.
+        /// </summary>
+        private string TextLogonFailed(int failCount) => _isRussianUi
+            ? (failCount > 1
+                ? $"Не удалось выполнить вход ни для одной системы. Ошибок: {failCount}."
+                : "Не удалось выполнить вход ни для одной системы.")
+            : (failCount > 1
+                ? $"Failed to log on to any system. Errors: {failCount}."
+                : "Failed to log on to any system.");
+
+        /// <summary>
+        /// Возвращает локализованную строку о неудачном выходе.
+        /// </summary>
+        private string TextLogoffFailed(int failCount) => _isRussianUi
+            ? (failCount > 1
+                ? $"Не удалось выполнить выход ни для одной системы. Ошибок: {failCount}."
+                : "Не удалось выполнить выход ни для одной системы.")
+            : (failCount > 1
+                ? $"Failed to log off from any system. Errors: {failCount}."
+                : "Failed to log off from any system.");
+
+        /// <summary>
+        /// Возвращает локализованную строку о недоступности активного процесса ViewX.
+        /// </summary>
+        private string TextViewXProcessNotFound() => _isRussianUi
+            ? "Активный процесс SE.Scada.ViewX.exe не найден."
+            : "Active SE.Scada.ViewX.exe process was not found.";
+
+        /// <summary>
+        /// Возвращает текст обратного отсчёта повторного запуска ViewX.
+        /// </summary>
+        private string TextRestartCountdown(int remaining) => _isRussianUi
+            ? $"Перезапуск ViewX через {remaining} сек..."
+            : $"Restart ViewX in {remaining} sec...";
 
         /// <summary>
         /// Загружает ранее сохранённые значения системы и логина из INI-файла.
@@ -355,7 +440,7 @@ namespace CS_Launcher
             // Логин обязателен для любого режима авторизации.
             if (string.IsNullOrEmpty(login))
             {
-                ShowError("Заполните поле \"Логин\".");
+                ShowError(TextLoginRequired());
                 return;
             }
 
@@ -366,9 +451,7 @@ namespace CS_Launcher
             // Если список пуст, дальнейшая авторизация бессмысленна.
             if (systems.Count == 0)
             {
-                ShowError(system == "*"
-                    ? "Не найдены подходящие системы в Systems.xml."
-                    : "Заполните поле \"Система\" или проверьте его значение.");
+                ShowError(system == "*" ? TextNoSystemsFound() : TextInvalidSystem());
                 return;
             }
 
@@ -400,9 +483,7 @@ namespace CS_Launcher
             // Успех считается достигнутым при наличии хотя бы одного успешного логина.
             if (successCount == 0)
             {
-                ShowError(failCount > 1
-                    ? $"Не удалось выполнить вход ни для одной системы. Ошибок: {failCount}."
-                    : "Не удалось выполнить вход ни для одной системы.");
+                ShowError(TextLogonFailed(failCount));
             }
         }
 
@@ -434,9 +515,7 @@ namespace CS_Launcher
 
             if (systems.Count == 0)
             {
-                ShowError(system == "*"
-                    ? "Не найдены подходящие системы в Systems.xml."
-                    : "Заполните поле \"Система\" или проверьте его значение.");
+                ShowError(system == "*" ? TextNoSystemsFound() : TextInvalidSystem());
                 return;
             }
 
@@ -468,9 +547,7 @@ namespace CS_Launcher
 
             if (successCount == 0)
             {
-                ShowError(failCount > 1
-                    ? $"Не удалось выполнить выход ни для одной системы. Ошибок: {failCount}."
-                    : "Не удалось выполнить выход ни для одной системы.");
+                ShowError(TextLogoffFailed(failCount));
             }
         }
 
@@ -764,7 +841,7 @@ namespace CS_Launcher
                 int currentRemaining = remaining;
                 await Dispatcher.InvokeAsync(() =>
                 {
-                    TxtError.Text = $"Restart ViewX in {currentRemaining} sec...";
+                    TxtError.Text = TextRestartCountdown(currentRemaining);
                     AdjustErrorTextFontSize();
                 });
                 await Task.Delay(1000, token).ConfigureAwait(false);

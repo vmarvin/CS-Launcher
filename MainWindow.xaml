@@ -20,18 +20,18 @@
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
 
-        <Label Grid.Row="0" Grid.Column="0" Content="System:" VerticalAlignment="Center"/>
+        <Label x:Name="LblSystem" Grid.Row="0" Grid.Column="0" Content="System:" VerticalAlignment="Center"/>
         <TextBox x:Name="TxtSystem" Grid.Row="0" Grid.Column="1" Margin="0,4" VerticalContentAlignment="Center" KeyDown="TxtField_KeyDown"/>
 
-        <Label Grid.Row="1" Grid.Column="0" Content="Login:" VerticalAlignment="Center"/>
+        <Label x:Name="LblLogin" Grid.Row="1" Grid.Column="0" Content="Login:" VerticalAlignment="Center"/>
         <TextBox x:Name="TxtLogin" Grid.Row="1" Grid.Column="1" Margin="0,4" VerticalContentAlignment="Center" KeyDown="TxtField_KeyDown"/>
 
-        <Label Grid.Row="2" Grid.Column="0" Content="Password:" VerticalAlignment="Center"/>
+        <Label x:Name="LblPassword" Grid.Row="2" Grid.Column="0" Content="Password:" VerticalAlignment="Center"/>
         <PasswordBox x:Name="TxtPassword" Grid.Row="2" Grid.Column="1" Margin="0,4" KeyDown="TxtPassword_KeyDown"/>
 
         <StackPanel Grid.Row="3" Grid.Column="1" Margin="0,12,0,0" Orientation="Horizontal" HorizontalAlignment="Right">
-            <Button Content="Exit" Width="80" Margin="0,0,8,0" Click="BtnLogOff_Click"/>
-            <Button Content="LogOn" Width="80" Click="BtnStart_Click"/>
+            <Button x:Name="BtnExit" Content="Exit" Width="80" Margin="0,0,8,0" Click="BtnLogOff_Click"/>
+            <Button x:Name="BtnLogOn" Content="LogOn" Width="80" Click="BtnStart_Click"/>
         </StackPanel>
 
         <StackPanel Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="2"
@@ -46,7 +46,7 @@
                          Margin="8,0,0,0"
                          VerticalContentAlignment="Center"
                          Text="10"/>
-                <TextBlock Text="sec" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                <TextBlock x:Name="TxtRestartUnit" Text="sec" Margin="6,0,0,0" VerticalAlignment="Center"/>
             </StackPanel>
 
             <StackPanel Orientation="Horizontal" Margin="0,8,0,0" VerticalAlignment="Center">
@@ -59,7 +59,7 @@
                          Margin="8,0,0,0"
                          VerticalContentAlignment="Center"
                          Text="120"/>
-                <TextBlock Text="minutes of inactivity" Margin="6,0,0,0" VerticalAlignment="Center" Width="232"/>
+                <TextBlock x:Name="TxtExitUnit" Text="minutes of inactivity" Margin="6,0,0,0" VerticalAlignment="Center" Width="232"/>
             </StackPanel>
         </StackPanel>
 
