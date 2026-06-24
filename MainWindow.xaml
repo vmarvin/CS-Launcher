@@ -35,17 +35,32 @@
         </StackPanel>
 
         <StackPanel Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="2"
-                    Orientation="Horizontal" Margin="0,10,0,0" VerticalAlignment="Center">
-            <CheckBox x:Name="ChkAttachToProcess"
-                      Content="Restart ViewX after"
-                      Unchecked="ChkAttachToProcess_Unchecked"
-                      VerticalAlignment="Center"/>
-            <TextBox x:Name="TxtRestartDelaySeconds"
-                     Width="48"
-                     Margin="8,0,0,0"
-                     VerticalContentAlignment="Center"
-                     Text="10"/>
-            <TextBlock Text="sec" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                    Orientation="Vertical" Margin="0,10,0,0">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <CheckBox x:Name="ChkAttachToProcess"
+                          Content="Restart ViewX after"
+                          Unchecked="ChkAttachToProcess_Unchecked"
+                          VerticalAlignment="Center"/>
+                <TextBox x:Name="TxtRestartDelaySeconds"
+                         Width="48"
+                         Margin="8,0,0,0"
+                         VerticalContentAlignment="Center"
+                         Text="10"/>
+                <TextBlock Text="sec" Margin="6,0,0,0" VerticalAlignment="Center"/>
+            </StackPanel>
+
+            <StackPanel Orientation="Horizontal" Margin="0,8,0,0" VerticalAlignment="Center">
+                <CheckBox x:Name="ChkExitAfter"
+                          Content="Exit after"
+                          Unchecked="ChkExitAfter_Unchecked"
+                          VerticalAlignment="Center"/>
+                <TextBox x:Name="TxtExitDelayMinutes"
+                         Width="48"
+                         Margin="8,0,0,0"
+                         VerticalContentAlignment="Center"
+                         Text="120"/>
+                <TextBlock Text="minutes of inactivity" Margin="6,0,0,0" VerticalAlignment="Center" Width="232"/>
+            </StackPanel>
         </StackPanel>
 
         <TextBlock x:Name="TxtError" Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="2"

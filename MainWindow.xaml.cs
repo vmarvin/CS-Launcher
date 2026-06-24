@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Interop;
+using Microsoft.Win32;
 using System.Xml.Linq;
 
 namespace CS_Launcher
@@ -24,6 +25,11 @@ namespace CS_Launcher
         /// Значение задержки перед повторным запуском ViewX по умолчанию, в секундах.
         /// </summary>
         private const int DefaultRestartDelaySeconds = 10;
+
+        /// <summary>
+        /// Значение задержки перед автоматическим выходом по умолчанию, в минутах.
+        /// </summary>
+        private const int DefaultExitDelayMinutes = 120;
 
         /// <summary>
         /// HWND для помещения окна выше других в Z-order.
@@ -77,11 +83,18 @@ namespace CS_Launcher
         private CancellationTokenSource? _attachMonitorCts;
 
         /// <summary>
+        /// Источник отмены для автоматического выхода по неактивности.
+        /// </summary>
+        private CancellationTokenSource? _exitAfterCts;
+
+        /// <summary>
         /// Создаёт главное окно и задаёт начальный фокус ввода после загрузки окна.
         /// </summary>
         public MainWindow()
         {
             InitializeComponent();
+
+            SystemEvents.SessionSwitch += SystemEvents_SessionSwitch;
 
             // После отображения окна восстанавливаем сохранённые данные и выбираем
             // поле, которое должно быть готово к вводу без дополнительных действий пользователя.
@@ -100,6 +113,8 @@ namespace CS_Launcher
             // При закрытии окна сохраняем актуальное состояние формы независимо от результата логина.
             Closing += (_, _) =>
             {
+                SystemEvents.SessionSwitch -= SystemEvents_SessionSwitch;
+                StopExitAfterMonitoring();
                 StopAttachMonitoring();
                 SaveSettings();
             };
@@ -119,7 +134,7 @@ namespace CS_Launcher
 
             // Читаем файл построчно и ищем нужные пары ключ=значение.
             var lines = File.ReadAllLines(IniPath);
-            string? system = null, login = null, attachToProcess = null, restartDelaySeconds = null;
+            string? system = null, login = null, attachToProcess = null, restartDelaySeconds = null, exitAfter = null, exitDelayMinutes = null;
 
             foreach (var line in lines)
             {
@@ -127,6 +142,8 @@ namespace CS_Launcher
                 else if (line.StartsWith("Login=")) login = line["Login=".Length..];
                 else if (line.StartsWith("AttachToProcess=")) attachToProcess = line["AttachToProcess=".Length..];
                 else if (line.StartsWith("RestartDelaySeconds=")) restartDelaySeconds = line["RestartDelaySeconds=".Length..];
+                else if (line.StartsWith("ExitAfter=")) exitAfter = line["ExitAfter=".Length..];
+                else if (line.StartsWith("ExitDelayMinutes=")) exitDelayMinutes = line["ExitDelayMinutes=".Length..];
             }
 
             // Для корректного восстановления нужны оба значения.
@@ -141,9 +158,15 @@ namespace CS_Launcher
                 ? delaySeconds.ToString()
                 : DefaultRestartDelaySeconds.ToString();
 
+            TxtExitDelayMinutes.Text = int.TryParse(exitDelayMinutes, out int exitMinutes) && exitMinutes > 0
+                ? exitMinutes.ToString()
+                : DefaultExitDelayMinutes.ToString();
+
             // Восстанавливаем состояние режима attach; если значение отсутствует,
             // считаем режим выключенным.
             ChkAttachToProcess.IsChecked = bool.TryParse(attachToProcess, out bool attachEnabled) && attachEnabled;
+
+            ChkExitAfter.IsChecked = bool.TryParse(exitAfter, out bool exitEnabled) && exitEnabled;
             return true;
         }
 
@@ -155,6 +178,7 @@ namespace CS_Launcher
             // Считываем текущее значение системы из формы.
             string system = TxtSystem.Text.Trim();
             int restartDelaySeconds = GetRestartDelaySeconds(true);
+            int exitDelayMinutes = GetExitDelayMinutes(true);
 
             // Если система сейчас пуста, сохраняем последнее значение из уже существующего файла,
             // чтобы не потерять ранее выбранную систему при обновлении только логина.
@@ -169,7 +193,9 @@ namespace CS_Launcher
                 $"System={system}",
                 $"Login={TxtLogin.Text.Trim()}",
                 $"AttachToProcess={ChkAttachToProcess.IsChecked == true}",
-                $"RestartDelaySeconds={restartDelaySeconds}"
+                $"RestartDelaySeconds={restartDelaySeconds}",
+                $"ExitAfter={ChkExitAfter.IsChecked == true}",
+                $"ExitDelayMinutes={exitDelayMinutes}"
             ]);
         }
 
@@ -230,6 +256,23 @@ namespace CS_Launcher
         }
 
         /// <summary>
+        /// Возвращает задержку автоматического выхода в минутах.
+        /// Некорректное значение заменяется на значение по умолчанию.
+        /// </summary>
+        /// <param name="normalizeText">Если <c>true</c>, обновляет поле ввода на корректное значение.</param>
+        /// <returns>Положительное количество минут задержки.</returns>
+        private int GetExitDelayMinutes(bool normalizeText = false)
+        {
+            if (int.TryParse(TxtExitDelayMinutes.Text.Trim(), out int delayMinutes) && delayMinutes > 0)
+                return delayMinutes;
+
+            if (normalizeText)
+                TxtExitDelayMinutes.Text = DefaultExitDelayMinutes.ToString();
+
+            return DefaultExitDelayMinutes;
+        }
+
+        /// <summary>
         /// Обрабатывает нажатие Enter в обычных текстовых полях.
         /// Поведение эквивалентно нажатию Tab: фокус переходит на следующий элемент.
         /// </summary>
@@ -273,6 +316,7 @@ namespace CS_Launcher
             // Если был активен предыдущий attach-мониторинг, завершаем его,
             // чтобы новое ручное нажатие кнопки не создавало дублирующий цикл.
             StopAttachMonitoring();
+            StopExitAfterMonitoring();
 
             // Стираем текст старой ошибки перед каждой новой попыткой входа.
             TxtError.Text = string.Empty;
@@ -356,6 +400,7 @@ namespace CS_Launcher
         {
             // Выход должен прервать текущий сеанс отслеживания ViewX, но не менять состояние чекбокса.
             StopAttachMonitoring();
+            StopExitAfterMonitoring();
 
             TxtError.Text = string.Empty;
 
@@ -418,6 +463,8 @@ namespace CS_Launcher
         /// </summary>
         private void ExitApplication()
         {
+            StopExitAfterMonitoring();
+            StopAttachMonitoring();
             Application.Current.Shutdown();
         }
 
@@ -445,6 +492,16 @@ namespace CS_Launcher
             _attachMonitorCts?.Cancel();
             _attachMonitorCts?.Dispose();
             _attachMonitorCts = null;
+        }
+
+        /// <summary>
+        /// Останавливает автоматический выход по неактивности.
+        /// </summary>
+        private void StopExitAfterMonitoring()
+        {
+            _exitAfterCts?.Cancel();
+            _exitAfterCts?.Dispose();
+            _exitAfterCts = null;
         }
 
         /// <summary>
@@ -481,7 +538,7 @@ namespace CS_Launcher
         }
 
         /// <summary>
-        /// Переводит окно приложения на задний план после успешного логина.
+        /// Сворачивает окно приложения на задний план после успешного логина.
         /// </summary>
         private void MinimizeToBackground()
         {
@@ -512,7 +569,85 @@ namespace CS_Launcher
         /// <param name="e">Аргументы Routed-события.</param>
         private void ChkAttachToProcess_Unchecked(object sender, RoutedEventArgs e)
         {
+            TxtError.Text = string.Empty;
             StopAttachMonitoring();
+        }
+
+        /// <summary>
+        /// Немедленно отключает автозавершение по неактивности при снятии чекбокса Exit after.
+        /// </summary>
+        /// <param name="sender">Источник события.</param>
+        /// <param name="e">Аргументы Routed-события.</param>
+        private void ChkExitAfter_Unchecked(object sender, RoutedEventArgs e)
+        {
+            StopExitAfterMonitoring();
+        }
+
+        /// <summary>
+        /// Обрабатывает события блокировки/разблокировки и подключения/отключения сеанса.
+        /// </summary>
+        private void SystemEvents_SessionSwitch(object sender, SessionSwitchEventArgs e)
+        {
+            _ = Dispatcher.BeginInvoke(() => HandleSessionSwitch(e.Reason));
+        }
+
+        /// <summary>
+        /// Запускает или останавливает автозавершение по неактивности в зависимости от причины системного события.
+        /// </summary>
+        /// <param name="reason">Причина переключения сеанса.</param>
+        private void HandleSessionSwitch(SessionSwitchReason reason)
+        {
+            if (reason is SessionSwitchReason.SessionLock or SessionSwitchReason.RemoteDisconnect)
+            {
+                StartExitAfterMonitoring();
+            }
+            else if (reason is SessionSwitchReason.SessionUnlock or SessionSwitchReason.RemoteConnect)
+            {
+                StopExitAfterMonitoring();
+            }
+        }
+
+        /// <summary>
+        /// Запускает ожидание автоматического выхода по неактивности.
+        /// </summary>
+        private void StartExitAfterMonitoring()
+        {
+            if (ChkExitAfter.IsChecked != true)
+                return;
+
+            int exitDelayMinutes = GetExitDelayMinutes();
+            if (exitDelayMinutes <= 0)
+                return;
+
+            StopExitAfterMonitoring();
+
+            _exitAfterCts = new CancellationTokenSource();
+            CancellationToken token = _exitAfterCts.Token;
+
+            _ = Task.Run(() => MonitorExitAfterAsync(exitDelayMinutes, token), token);
+        }
+
+        /// <summary>
+        /// Ожидает заданное количество минут и затем закрывает приложение, если ожидание не было отменено.
+        /// </summary>
+        /// <param name="delayMinutes">Задержка в минутах.</param>
+        /// <param name="token">Токен отмены.</param>
+        private async Task MonitorExitAfterAsync(int delayMinutes, CancellationToken token)
+        {
+            try
+            {
+                await Task.Delay(TimeSpan.FromMinutes(delayMinutes), token).ConfigureAwait(false);
+
+                if (token.IsCancellationRequested)
+                    return;
+
+                // По истечении времени выполняем тот же сценарий, что и при нажатии кнопки Exit.
+                await Dispatcher.InvokeAsync(() => BtnLogOff_Click(this, new RoutedEventArgs()));
+            }
+            catch (OperationCanceledException)
+            {
+                // Отмена по unlock/reconnect или при закрытии приложения.
+            }
         }
 
         /// <summary>
@@ -557,6 +692,11 @@ namespace CS_Launcher
                     if (token.IsCancellationRequested)
                         return;
                 }
+
+                // Очищаем область сообщений и даём UI успеть отрисовать пустое состояние
+                // до повторного запуска процесса логина.
+                await Dispatcher.InvokeAsync(() => TxtError.Text = string.Empty);
+                await Task.Delay(100, token).ConfigureAwait(false);
 
                 // После завершения отсчёта возвращаемся в UI-поток и повторяем логон.
                 await Dispatcher.InvokeAsync(() => BtnStart_Click(this, new RoutedEventArgs()));
