@@ -4,6 +4,8 @@
 
 **CS Launcher** — это простое WPF-приложение для запуска авторизации в ViewX / ClearSCADA. Приложение позволяет вводить имя системы, логин и пароль, а затем выполнять вход вручную или по списку систем из `Systems.xml`.
 
+Интерфейс автоматически отображается на русском языке, если русская локаль указана в языковых настройках системы; во всех остальных случаях используется английский.
+
 ### Возможности
 
 - Ввод системы, логина и пароля в графической форме.
@@ -11,6 +13,7 @@
 - Поддержка клавиши **Enter**:
   - в полях **Система** и **Логин** — переход к следующему полю;
   - в поле **Пароль** — запуск авторизации.
+- Двуязычный интерфейс: русский при русской системной UI-культуре, английский во всех остальных случаях.
 - Сохранение введённых значений в INI-файл рядом с исполняемым файлом.
 - Поддержка режима массовой авторизации по `Systems.xml`.
 - Режим **Attach to process** для автоматического повторного логина после завершения `SE.Scada.ViewX.exe`.
@@ -18,7 +21,7 @@
   - если поле **Система** заполнено конкретным значением — авторизация выполняется только в эту систему;
   - если поле **Система** пустое или содержит `*` — приложение читает `%ProgramData%\Schneider Electric\ClearSCADA\Systems.xml` и авторизуется по всем подходящим системам.
 - Считается, что авторизация успешна, если хотя бы один логон прошёл успешно.
-- Сохранение состояния чекбокса `Attach to process` в INI-файл.
+- Сохранение состояния чекбокса `Перезапускать ViewX через` в INI-файл.
 - Сохранение настроек при закрытии приложения.
 - Поддержка сборки в **монолитный single-file exe**.
 - Настроенная иконка приложения.
@@ -44,7 +47,7 @@ AttachToProcess=True
 ```
 
 Если поле **Система** пустое, при нажатии **Пуск** приложение автоматически заменяет его на `*` и включает режим чтения списка систем из XML.
-Если включён чекбокс **Attach to process**, после успешного логина приложение отслеживает процесс `SE.Scada.ViewX.exe` и повторяет авторизацию после его завершения.
+Если включён чекбокс **Перезапускать ViewX через**, после успешного логина приложение отслеживает процесс `SE.Scada.ViewX.exe` и повторяет авторизацию после его завершения.
 
 #### Systems.xml
 
@@ -78,8 +81,9 @@ AttachToProcess=True
 - **Система** — имя системы.
 - **Логин** — имя пользователя.
 - **Пароль** — пароль пользователя.
-- **Attach to process** — включает автоматическое повторение логина после завершения `SE.Scada.ViewX.exe`.
-- **Пуск** — запуск авторизации.
+- **Перезапускать ViewX через** — включает отслеживание завершения `SE.Scada.ViewX.exe` и повторный логон через указанное число секунд.
+- **Выход после** — включает автоматический выход после указанного числа минут бездействия.
+- **Вход** — запуск авторизации.
 
 ### Сборка
 
@@ -133,6 +137,8 @@ dotnet publish -c Release
 
 **CS Launcher** is a simple WPF application for launching ViewX / ClearSCADA logon sessions. The app lets the user enter a system name, username, and password, then perform a direct logon or logon against a list of systems from `Systems.xml`.
 
+The interface automatically switches to Russian when the system UI language is Russian; in all other cases, English is used.
+
 ### Features
 
 - Graphical input fields for system, username, and password.
@@ -140,6 +146,7 @@ dotnet publish -c Release
 - **Enter** key support:
   - in **System** and **Login** fields — moves focus to the next field;
   - in **Password** field — starts the logon process.
+- Bilingual interface: Russian when the system UI culture is Russian, English in all other cases.
 - Saves entered values to an INI file next to the executable.
 - Supports bulk logon mode via `Systems.xml`.
 - Two launch modes:
@@ -206,7 +213,8 @@ The system name is taken from the `name` attribute.
 - **System** — system name.
 - **Login** — user name.
 - **Password** — user password.
-- **Attach to process** — enables automatic relogon after `SE.Scada.ViewX.exe` exits.
+- **Restart ViewX after** — monitors `SE.Scada.ViewX.exe` and repeats logon after the specified number of seconds.
+- **Exit after** — enables automatic exit after the specified number of minutes of inactivity.
 - **Start** — starts the logon process.
 
 ### Build
