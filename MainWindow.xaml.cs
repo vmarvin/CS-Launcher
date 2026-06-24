@@ -21,6 +21,11 @@ namespace CS_Launcher
         private const string ViewXProcessName = "SE.Scada.ViewX";
 
         /// <summary>
+        /// Значение задержки перед повторным запуском ViewX по умолчанию, в секундах.
+        /// </summary>
+        private const int DefaultRestartDelaySeconds = 10;
+
+        /// <summary>
         /// HWND для помещения окна выше других в Z-order.
         /// </summary>
         private static readonly IntPtr HWND_TOP = new IntPtr(0);
@@ -114,13 +119,14 @@ namespace CS_Launcher
 
             // Читаем файл построчно и ищем нужные пары ключ=значение.
             var lines = File.ReadAllLines(IniPath);
-            string? system = null, login = null, attachToProcess = null;
+            string? system = null, login = null, attachToProcess = null, restartDelaySeconds = null;
 
             foreach (var line in lines)
             {
                 if (line.StartsWith("System=")) system = line["System=".Length..];
                 else if (line.StartsWith("Login=")) login = line["Login=".Length..];
                 else if (line.StartsWith("AttachToProcess=")) attachToProcess = line["AttachToProcess=".Length..];
+                else if (line.StartsWith("RestartDelaySeconds=")) restartDelaySeconds = line["RestartDelaySeconds=".Length..];
             }
 
             // Для корректного восстановления нужны оба значения.
@@ -129,6 +135,11 @@ namespace CS_Launcher
             // Применяем сохранённые значения к полям формы.
             TxtSystem.Text = system;
             TxtLogin.Text = login;
+
+            // Восстанавливаем значение задержки; при отсутствии или некорректном значении используем 10 секунд.
+            TxtRestartDelaySeconds.Text = int.TryParse(restartDelaySeconds, out int delaySeconds) && delaySeconds >= 0
+                ? delaySeconds.ToString()
+                : DefaultRestartDelaySeconds.ToString();
 
             // Восстанавливаем состояние режима attach; если значение отсутствует,
             // считаем режим выключенным.
@@ -143,6 +154,7 @@ namespace CS_Launcher
         {
             // Считываем текущее значение системы из формы.
             string system = TxtSystem.Text.Trim();
+            int restartDelaySeconds = GetRestartDelaySeconds(true);
 
             // Если система сейчас пуста, сохраняем последнее значение из уже существующего файла,
             // чтобы не потерять ранее выбранную систему при обновлении только логина.
@@ -156,7 +168,8 @@ namespace CS_Launcher
             File.WriteAllLines(IniPath, [
                 $"System={system}",
                 $"Login={TxtLogin.Text.Trim()}",
-                $"AttachToProcess={ChkAttachToProcess.IsChecked == true}"
+                $"AttachToProcess={ChkAttachToProcess.IsChecked == true}",
+                $"RestartDelaySeconds={restartDelaySeconds}"
             ]);
         }
 
@@ -197,6 +210,23 @@ namespace CS_Launcher
             return system == "*"
                 ? GetEligibleSystems()
                 : [system];
+        }
+
+        /// <summary>
+        /// Возвращает задержку повторного запуска ViewX в секундах.
+        /// Некорректное значение заменяется на значение по умолчанию.
+        /// </summary>
+        /// <param name="normalizeText">Если <c>true</c>, обновляет поле ввода на корректное значение.</param>
+        /// <returns>Неотрицательное количество секунд задержки.</returns>
+        private int GetRestartDelaySeconds(bool normalizeText = false)
+        {
+            if (int.TryParse(TxtRestartDelaySeconds.Text.Trim(), out int delaySeconds) && delaySeconds >= 0)
+                return delaySeconds;
+
+            if (normalizeText)
+                TxtRestartDelaySeconds.Text = DefaultRestartDelaySeconds.ToString();
+
+            return DefaultRestartDelaySeconds;
         }
 
         /// <summary>
@@ -329,6 +359,9 @@ namespace CS_Launcher
 
             TxtError.Text = string.Empty;
 
+            // Сохраняем настройки кнопки Exit независимо от результата выхода.
+            SaveSettings();
+
             string system = TxtSystem.Text.Trim();
             if (string.IsNullOrWhiteSpace(system))
             {
@@ -340,7 +373,9 @@ namespace CS_Launcher
 
             if (systems.Count == 0)
             {
-                ExitApplication();
+                ShowError(system == "*"
+                    ? "Не найдены подходящие системы в Systems.xml."
+                    : "Заполните поле \"Система\" или проверьте его значение.");
                 return;
             }
 
@@ -513,7 +548,17 @@ namespace CS_Launcher
                 if (token.IsCancellationRequested)
                     return;
 
-                // После завершения процесса возвращаемся в UI-поток и повторяем логон.
+                int restartDelaySeconds = await Dispatcher.InvokeAsync(() => GetRestartDelaySeconds());
+
+                // Если задержка задана, показываем обратный отсчёт в области сообщений.
+                if (restartDelaySeconds > 0)
+                {
+                    await RunRestartCountdownAsync(restartDelaySeconds, token).ConfigureAwait(false);
+                    if (token.IsCancellationRequested)
+                        return;
+                }
+
+                // После завершения отсчёта возвращаемся в UI-поток и повторяем логон.
                 await Dispatcher.InvokeAsync(() => BtnStart_Click(this, new RoutedEventArgs()));
             }
             catch (OperationCanceledException)
@@ -523,6 +568,23 @@ namespace CS_Launcher
             catch (InvalidOperationException)
             {
                 // Процесс мог завершиться между поиском и началом ожидания.
+            }
+        }
+
+        /// <summary>
+        /// Отображает обратный отсчёт до повторного запуска ViewX.
+        /// </summary>
+        /// <param name="delaySeconds">Начальная задержка в секундах.</param>
+        /// <param name="token">Токен отмены.</param>
+        private async Task RunRestartCountdownAsync(int delaySeconds, CancellationToken token)
+        {
+            for (int remaining = delaySeconds; remaining > 0; remaining--)
+            {
+                token.ThrowIfCancellationRequested();
+
+                int currentRemaining = remaining;
+                await Dispatcher.InvokeAsync(() => TxtError.Text = $"Restart ViewX in {currentRemaining} sec...");
+                await Task.Delay(1000, token).ConfigureAwait(false);
             }
         }
 
