@@ -75,5 +75,28 @@ namespace CS_Launcher
             // Возвращаем итог — успешен ли хотя бы один вход.
             return logon_result;
         }
+
+        /// <summary>
+        /// Выполняет выход из указанной системы ViewX.
+        /// </summary>
+        /// <param name="server_system">Имя или адрес целевой системы.</param>
+        /// <param name="ViewXApp">Экземпляр приложения ViewX, через который выполняется выход.</param>
+        /// <returns><c>true</c>, если выход выполнен успешно; иначе <c>false</c>.</returns>
+        public static bool LogOff(string server_system, Application ViewXApp)
+        {
+            bool logoff_result = false;
+
+            try
+            {
+                ViewXApp.Logoff(server_system);
+                logoff_result = true;
+            }
+            catch
+            {
+                logoff_result = false;
+            }
+
+            return logoff_result;
+        }
     }
 }

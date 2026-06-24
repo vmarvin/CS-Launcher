@@ -26,6 +26,11 @@ namespace CS_Launcher
         private static readonly IntPtr HWND_TOP = new IntPtr(0);
 
         /// <summary>
+        /// Сообщение WM_CLOSE.
+        /// </summary>
+        private const int WM_CLOSE = 0x0010;
+
+        /// <summary>
         /// Флаг SetWindowPos: не менять размер окна.
         /// </summary>
         private const int SWP_NOSIZE = 0x0001;
@@ -183,6 +188,18 @@ namespace CS_Launcher
         }
 
         /// <summary>
+        /// Возвращает список целевых систем для текущего значения поля System.
+        /// </summary>
+        /// <param name="system">Текущее значение поля System.</param>
+        /// <returns>Список систем для обработки.</returns>
+        private static List<string> GetTargetSystems(string system)
+        {
+            return system == "*"
+                ? GetEligibleSystems()
+                : [system];
+        }
+
+        /// <summary>
         /// Обрабатывает нажатие Enter в обычных текстовых полях.
         /// Поведение эквивалентно нажатию Tab: фокус переходит на следующий элемент.
         /// </summary>
@@ -255,9 +272,7 @@ namespace CS_Launcher
 
             // Если в поле системы стоит *, работаем по XML-списку.
             // Иначе выполняем вход только в конкретную указанную систему.
-            List<string> systems = system == "*"
-                ? GetEligibleSystems()
-                : [system];
+            List<string> systems = GetTargetSystems(system);
 
             // Если список пуст, дальнейшая авторизация бессмысленна.
             if (systems.Count == 0)
@@ -300,6 +315,91 @@ namespace CS_Launcher
                     ? $"Не удалось выполнить вход ни для одной системы. Ошибок: {failCount}."
                     : "Не удалось выполнить вход ни для одной системы.");
             }
+        }
+
+        /// <summary>
+        /// Выполняет выход из выбранной системы или списка систем и останавливает мониторинг ViewX.
+        /// </summary>
+        /// <param name="sender">Источник события.</param>
+        /// <param name="e">Аргументы события нажатия кнопки.</param>
+        private void BtnLogOff_Click(object sender, RoutedEventArgs e)
+        {
+            // Выход должен прервать текущий сеанс отслеживания ViewX, но не менять состояние чекбокса.
+            StopAttachMonitoring();
+
+            TxtError.Text = string.Empty;
+
+            string system = TxtSystem.Text.Trim();
+            if (string.IsNullOrWhiteSpace(system))
+            {
+                system = "*";
+                TxtSystem.Text = system;
+            }
+
+            List<string> systems = GetTargetSystems(system);
+
+            if (systems.Count == 0)
+            {
+                ExitApplication();
+                return;
+            }
+
+            // Если активного процесса ViewX нет, создавать новый экземпляр не требуется и выход невозможен.
+            if (FindCurrentUserViewXProcess() is null)
+            {
+                ExitApplication();
+                return;
+            }
+
+            var viewXApp = new ViewX.Application();
+            int successCount = 0;
+            int failCount = 0;
+
+            foreach (string targetSystem in systems)
+            {
+                if (CSLogon.LogOff(targetSystem, viewXApp))
+                    successCount++;
+                else
+                    failCount++;
+            }
+
+            if (successCount > 0)
+            {
+                CloseViewXWindow();
+                Application.Current.Shutdown();
+                return;
+            }
+
+            if (successCount == 0)
+            {
+                ShowError(failCount > 1
+                    ? $"Не удалось выполнить выход ни для одной системы. Ошибок: {failCount}."
+                    : "Не удалось выполнить выход ни для одной системы.");
+            }
+        }
+
+        /// <summary>
+        /// Закрывает приложение без отображения ошибки.
+        /// </summary>
+        private void ExitApplication()
+        {
+            Application.Current.Shutdown();
+        }
+
+        /// <summary>
+        /// Закрывает главное окно ViewX через WM_CLOSE.
+        /// </summary>
+        private void CloseViewXWindow()
+        {
+            Process? process = FindCurrentUserViewXProcess();
+            if (process is null)
+                return;
+
+            IntPtr handle = process.MainWindowHandle;
+            if (handle == IntPtr.Zero)
+                return;
+
+            _ = PostMessage(handle, WM_CLOSE, IntPtr.Zero, IntPtr.Zero);
         }
 
         /// <summary>
@@ -483,6 +583,12 @@ namespace CS_Launcher
         /// <returns><c>true</c>, если операция выполнена успешно; иначе <c>false</c>.</returns>
         [DllImport("user32.dll", SetLastError = true)]
         private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int x, int y, int cx, int cy, int uFlags);
+
+        /// <summary>
+        /// Отправляет оконное сообщение.
+        /// </summary>
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool PostMessage(IntPtr hWnd, int Msg, IntPtr wParam, IntPtr lParam);
 
         /// <summary>
         /// Восстанавливает окно из свёрнутого состояния.
