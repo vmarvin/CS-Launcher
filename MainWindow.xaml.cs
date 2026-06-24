@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -7,6 +8,8 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Interop;
 using Microsoft.Win32;
+using System.Windows.Threading;
+using System.Windows.Media;
 using System.Xml.Linq;
 
 namespace CS_Launcher
@@ -88,11 +91,20 @@ namespace CS_Launcher
         private CancellationTokenSource? _exitAfterCts;
 
         /// <summary>
+        /// Базовый размер шрифта поля ошибок для последующего восстановления.
+        /// </summary>
+        private double _errorTextBaseFontSize;
+
+        /// <summary>
         /// Создаёт главное окно и задаёт начальный фокус ввода после загрузки окна.
         /// </summary>
         public MainWindow()
         {
             InitializeComponent();
+
+            _errorTextBaseFontSize = TxtError.FontSize;
+
+            TxtError.SizeChanged += (_, _) => RequestAdjustErrorTextFontSize();
 
             SystemEvents.SessionSwitch += SystemEvents_SessionSwitch;
 
@@ -108,6 +120,8 @@ namespace CS_Launcher
                     TxtPassword.Focus();
                 else
                     TxtSystem.Focus();
+
+                RequestAdjustErrorTextFontSize();
             };
 
             // При закрытии окна сохраняем актуальное состояние формы независимо от результата логина.
@@ -320,6 +334,7 @@ namespace CS_Launcher
 
             // Стираем текст старой ошибки перед каждой новой попыткой входа.
             TxtError.Text = string.Empty;
+            RequestAdjustErrorTextFontSize();
 
             // Читаем текущие значения полей формы.
             string system = TxtSystem.Text.Trim();
@@ -403,6 +418,7 @@ namespace CS_Launcher
             StopExitAfterMonitoring();
 
             TxtError.Text = string.Empty;
+            RequestAdjustErrorTextFontSize();
 
             // Сохраняем настройки кнопки Exit независимо от результата выхода.
             SaveSettings();
@@ -513,6 +529,7 @@ namespace CS_Launcher
             RestoreAndActivateWindow();
 
             TxtError.Text = message;
+            AdjustErrorTextFontSize();
         }
 
         /// <summary>
@@ -571,6 +588,7 @@ namespace CS_Launcher
         {
             TxtError.Text = string.Empty;
             StopAttachMonitoring();
+            RequestAdjustErrorTextFontSize();
         }
 
         /// <summary>
@@ -582,6 +600,23 @@ namespace CS_Launcher
         {
             StopExitAfterMonitoring();
         }
+
+        /// <summary>
+        /// Подгоняет размер шрифта сообщения об ошибке так, чтобы текст помещался в видимую область.
+        /// </summary>
+        private void AdjustErrorTextFontSize()
+        {
+            TxtError.FontSize = _errorTextBaseFontSize;
+        }
+
+        /// <summary>
+        /// Запрашивает подгонку размера шрифта сообщения на следующем проходе UI-layout.
+        /// </summary>
+        private void RequestAdjustErrorTextFontSize()
+        {
+            AdjustErrorTextFontSize();
+        }
+
 
         /// <summary>
         /// Обрабатывает события блокировки/разблокировки и подключения/отключения сеанса.
@@ -695,7 +730,11 @@ namespace CS_Launcher
 
                 // Очищаем область сообщений и даём UI успеть отрисовать пустое состояние
                 // до повторного запуска процесса логина.
-                await Dispatcher.InvokeAsync(() => TxtError.Text = string.Empty);
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    TxtError.Text = string.Empty;
+                    AdjustErrorTextFontSize();
+                });
                 await Task.Delay(100, token).ConfigureAwait(false);
 
                 // После завершения отсчёта возвращаемся в UI-поток и повторяем логон.
@@ -723,7 +762,11 @@ namespace CS_Launcher
                 token.ThrowIfCancellationRequested();
 
                 int currentRemaining = remaining;
-                await Dispatcher.InvokeAsync(() => TxtError.Text = $"Restart ViewX in {currentRemaining} sec...");
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    TxtError.Text = $"Restart ViewX in {currentRemaining} sec...";
+                    AdjustErrorTextFontSize();
+                });
                 await Task.Delay(1000, token).ConfigureAwait(false);
             }
         }

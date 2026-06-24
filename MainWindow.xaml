@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:CS_Launcher"
         mc:Ignorable="d"
-        Title="CS Launcher" Height="260" Width="400" ResizeMode="CanMinimize" WindowStartupLocation="CenterScreen">
+        Title="CS Launcher" Height="275" Width="400" ResizeMode="CanMinimize" WindowStartupLocation="CenterScreen">
     <Grid Margin="20">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -63,7 +63,12 @@
             </StackPanel>
         </StackPanel>
 
-        <TextBlock x:Name="TxtError" Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="2"
-                   Margin="0,8,0,0" Foreground="Red" TextWrapping="Wrap" VerticalAlignment="Top"/>
+        <Viewbox Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="2"
+                 Margin="0,8,0,0" Stretch="Uniform" StretchDirection="DownOnly" Height="47">
+            <TextBlock x:Name="TxtError"
+                       Foreground="Red"
+                       TextWrapping="NoWrap"
+                       VerticalAlignment="Top"/>
+        </Viewbox>
     </Grid>
 </Window>
