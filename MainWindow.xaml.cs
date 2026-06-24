@@ -1,9 +1,11 @@
 ﻿using System.Diagnostics;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Xml.Linq;
 
 namespace CS_Launcher
@@ -17,6 +19,31 @@ namespace CS_Launcher
         /// Имя процесса ViewX, за завершением которого мы можем следить.
         /// </summary>
         private const string ViewXProcessName = "SE.Scada.ViewX";
+
+        /// <summary>
+        /// HWND для помещения окна выше других в Z-order.
+        /// </summary>
+        private static readonly IntPtr HWND_TOP = new IntPtr(0);
+
+        /// <summary>
+        /// Флаг SetWindowPos: не менять размер окна.
+        /// </summary>
+        private const int SWP_NOSIZE = 0x0001;
+
+        /// <summary>
+        /// Флаг SetWindowPos: не менять позицию окна.
+        /// </summary>
+        private const int SWP_NOMOVE = 0x0002;
+
+        /// <summary>
+        /// Флаг SetWindowPos: показать окно, если оно скрыто.
+        /// </summary>
+        private const int SWP_SHOWWINDOW = 0x0040;
+
+        /// <summary>
+        /// Команда ShowWindow для восстановления окна.
+        /// </summary>
+        private const int SW_RESTORE = 9;
 
         /// <summary>
         /// Путь к INI-файлу рядом с исполняемым файлом.
@@ -222,7 +249,7 @@ namespace CS_Launcher
             // Логин обязателен для любого режима авторизации.
             if (string.IsNullOrEmpty(login))
             {
-                TxtError.Text = "Заполните поле \"Логин\".";
+                ShowError("Заполните поле \"Логин\".");
                 return;
             }
 
@@ -235,9 +262,9 @@ namespace CS_Launcher
             // Если список пуст, дальнейшая авторизация бессмысленна.
             if (systems.Count == 0)
             {
-                TxtError.Text = system == "*"
+                ShowError(system == "*"
                     ? "Не найдены подходящие системы в Systems.xml."
-                    : "Заполните поле \"Система\" или проверьте его значение.";
+                    : "Заполните поле \"Система\" или проверьте его значение.");
                 return;
             }
 
@@ -255,6 +282,12 @@ namespace CS_Launcher
                     failCount++;
             }
 
+            // При успешном логоне поднимаем окно ViewX поверх остальных окон, чтобы пользователь мог сразу приступить к работе.
+            if (successCount > 0)
+            {
+                BringViewXWindowToTop();
+            }
+
             // Если пользователь включил режим attach и хотя бы один логон прошёл успешно,
             // начинаем фоновое ожидание завершения процесса ViewX.
             if (successCount > 0 && ChkAttachToProcess.IsChecked == true)
@@ -263,9 +296,9 @@ namespace CS_Launcher
             // Успех считается достигнутым при наличии хотя бы одного успешного логина.
             if (successCount == 0)
             {
-                TxtError.Text = failCount > 1
+                ShowError(failCount > 1
                     ? $"Не удалось выполнить вход ни для одной системы. Ошибок: {failCount}."
-                    : "Не удалось выполнить вход ни для одной системы.";
+                    : "Не удалось выполнить вход ни для одной системы.");
             }
         }
 
@@ -277,6 +310,64 @@ namespace CS_Launcher
             _attachMonitorCts?.Cancel();
             _attachMonitorCts?.Dispose();
             _attachMonitorCts = null;
+        }
+
+        /// <summary>
+        /// Показывает окно приложения и отображает сообщение об ошибке.
+        /// </summary>
+        /// <param name="message">Текст сообщения об ошибке.</param>
+        private void ShowError(string message)
+        {
+            RestoreAndActivateWindow();
+
+            TxtError.Text = message;
+        }
+
+        /// <summary>
+        /// Восстанавливает окно приложения и пытается перевести его в foreground.
+        /// </summary>
+        private void RestoreAndActivateWindow()
+        {
+            if (WindowState == WindowState.Minimized)
+                WindowState = WindowState.Normal;
+
+            Show();
+            Activate();
+
+            IntPtr handle = new WindowInteropHelper(this).Handle;
+            if (handle != IntPtr.Zero)
+            {
+                _ = ShowWindow(handle, SW_RESTORE);
+                _ = SetForegroundWindow(handle);
+            }
+
+            Topmost = true;
+            Topmost = false;
+        }
+
+        /// <summary>
+        /// Переводит окно приложения на задний план после успешного логина.
+        /// </summary>
+        private void MinimizeToBackground()
+        {
+            WindowState = WindowState.Minimized;
+        }
+
+        /// <summary>
+        /// Перемещает окно ViewX на вершину Z-order после успешного логина.
+        /// </summary>
+        private void BringViewXWindowToTop()
+        {
+            Process? process = FindCurrentUserViewXProcess();
+            if (process is null)
+                return;
+
+            IntPtr handle = process.MainWindowHandle;
+            if (handle == IntPtr.Zero)
+                return;
+
+            // SetWindowPos(HWND_TOP, ...) поднимает окно поверх остальных без изменения размера и позиции.
+            _ = SetWindowPos(handle, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
         }
 
         /// <summary>
@@ -378,5 +469,31 @@ namespace CS_Launcher
 
             return null;
         }
+
+        /// <summary>
+        /// Перемещает указанное окно в Z-order с помощью Win32 SetWindowPos.
+        /// </summary>
+        /// <param name="hWnd">Дескриптор окна.</param>
+        /// <param name="hWndInsertAfter">Позиция в Z-order, например HWND_TOP.</param>
+        /// <param name="x">Координата X (игнорируется при SWP_NOMOVE).</param>
+        /// <param name="y">Координата Y (игнорируется при SWP_NOMOVE).</param>
+        /// <param name="cx">Ширина (игнорируется при SWP_NOSIZE).</param>
+        /// <param name="cy">Высота (игнорируется при SWP_NOSIZE).</param>
+        /// <param name="uFlags">Комбинация флагов SetWindowPos.</param>
+        /// <returns><c>true</c>, если операция выполнена успешно; иначе <c>false</c>.</returns>
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int x, int y, int cx, int cy, int uFlags);
+
+        /// <summary>
+        /// Восстанавливает окно из свёрнутого состояния.
+        /// </summary>
+        [DllImport("user32.dll")]
+        private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+        /// <summary>
+        /// Переводит окно в foreground.
+        /// </summary>
+        [DllImport("user32.dll")]
+        private static extern bool SetForegroundWindow(IntPtr hWnd);
     }
 }
