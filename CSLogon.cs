@@ -1,6 +1,6 @@
 ﻿using ViewX;
 
-namespace CS_Launcher
+namespace VX_Launcher
 {
     /// <summary>
     /// Вспомогательный класс, инкапсулирующий повторные попытки авторизации в ViewX.

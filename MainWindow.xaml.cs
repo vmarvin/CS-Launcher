@@ -1,18 +1,15 @@
-﻿using System.Diagnostics;
+﻿using Microsoft.Win32;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Runtime.InteropServices;
-using System.Threading;
-using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Interop;
-using Microsoft.Win32;
 using System.Windows.Threading;
-using System.Windows.Media;
 using System.Xml.Linq;
 
-namespace CS_Launcher
+namespace VX_Launcher
 {
     /// <summary>
     /// Главное окно приложения, содержащее поля ввода учётных данных и запуск авторизации.

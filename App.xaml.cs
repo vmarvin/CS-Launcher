@@ -2,7 +2,7 @@
 using System.Data;
 using System.Windows;
 
-namespace CS_Launcher
+namespace VX_Launcher
 {
     /// <summary>
     /// Interaction logic for App.xaml
