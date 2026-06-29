@@ -1,8 +1,8 @@
-# CS Launcher
+# ViewX Launcher
 
 ## Русский
 
-**CS Launcher** — это простое WPF-приложение для запуска авторизации в ViewX / ClearSCADA. Приложение позволяет вводить имя системы, логин и пароль, а затем выполнять вход вручную или по списку систем из `Systems.xml`.
+**ViewX Launcher** — это простое WPF-приложение для запуска авторизации в ViewX / ClearSCADA. Приложение позволяет вводить имя системы, логин и пароль, а затем выполнять вход вручную или по списку систем из `Systems.xml`.
 
 Интерфейс автоматически отображается на русском языке, если русская локаль указана в языковых настройках системы; во всех остальных случаях используется английский.
 
@@ -119,7 +119,7 @@ dotnet publish -c Release
 - `MainWindow.xaml` — форма приложения.
 - `MainWindow.xaml.cs` — логика UI и запуск авторизации.
 - `CSLogon.cs` — выполнение логина в ViewX.
-- `CS Launcher.csproj` — настройки проекта и публикации.
+- `ViewX Launcher.csproj` — настройки проекта и публикации.
 - `app.ico` — иконка приложения.
 
 ### Возможные ошибки
@@ -135,7 +135,7 @@ dotnet publish -c Release
 
 ## English
 
-**CS Launcher** is a simple WPF application for launching ViewX / ClearSCADA logon sessions. The app lets the user enter a system name, username, and password, then perform a direct logon or logon against a list of systems from `Systems.xml`.
+**ViewX Launcher** is a simple WPF application for launching ViewX / ClearSCADA logon sessions. The app lets the user enter a system name, username, and password, then perform a direct logon or logon against a list of systems from `Systems.xml`.
 
 The interface automatically switches to Russian when the system UI language is Russian; in all other cases, English is used.
 
@@ -251,7 +251,7 @@ and assigned as the executable icon.
 - `MainWindow.xaml` — application window layout.
 - `MainWindow.xaml.cs` — UI logic and logon flow.
 - `CSLogon.cs` — ViewX logon helper.
-- `CS Launcher.csproj` — project and publish settings.
+- `ViewX Launcher.csproj` — project and publish settings.
 - `app.ico` — application icon.
 
 ### Common errors
