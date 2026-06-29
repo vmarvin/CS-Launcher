@@ -84,6 +84,7 @@ AttachToProcess=True
 - **Перезапускать ViewX через** — включает отслеживание завершения `SE.Scada.ViewX.exe` и повторный логон через указанное число секунд.
 - **Выход после** — включает автоматический выход после указанного числа минут бездействия.
 - **Вход** — запуск авторизации.
+- **Выход** — выполняет выход из выбранной системы или списка систем, останавливает фоновые режимы attach/exit-after и закрывает приложение.
 
 ### Сборка
 
@@ -216,6 +217,7 @@ The system name is taken from the `name` attribute.
 - **Restart ViewX after** — monitors `SE.Scada.ViewX.exe` and repeats logon after the specified number of seconds.
 - **Exit after** — enables automatic exit after the specified number of minutes of inactivity.
 - **Start** — starts the logon process.
+- **Exit** — logs off from the selected system or the system list, stops the attach/exit-after background modes, and closes the application.
 
 ### Build
 
